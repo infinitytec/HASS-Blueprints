@@ -1,1 +1,57 @@
+blueprint:
+  name: NWS Alert to Meshtastic
+  source_url: https://raw.githubusercontent.com/infinitytec/HASS-Blueprints/refs/heads/main/weathertastic.yaml?token=GHSAT0AAAAAAC3JLJ3CFZLLEWV6P2IYW7W2Z6GMEIA
+  author: infinitytec (with some significant help from ChatGPT)
+  description: Sends a brief NWS alert with Event, Onset, and End times in a readable format for every alert. Requires the <a href="https://github.com/finity69x2/nws_alerts/" target="blank">NWS Alerts</a> and the <a href="https://github.com/broglep/homeassistant-meshtastic" target="blank">Meshtastic</a> integrations along with a connected Meshtastic node. This will send two notifications to the specified channel. Keep that in mind and be respectful to other users!
+  domain: automation
+  input:
+    nws_alert_sensor:
+      name: NWS Alert Sensor
+      description: The sensor that provides NWS alerts.
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            integration: nws_alerts
+    meshtastic_channel:
+      name: Meshtastic Channel
+      description: The Meshtastic channel to send alerts to.
+      selector:
+        entity:
+          filter:
+            domain: meshtastic
 
+triggers:
+  - trigger: state
+    entity_id: !input nws_alert_sensor
+
+actions:
+  - variables:
+      nws: !input nws_alert_sensor
+      alerts: "{{ state_attr(nws, 'Alerts') | default([]) }}"
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ alerts | length > 0 }}"
+        sequence:
+          - repeat:
+              for_each: "{{ alerts }}"
+              sequence:
+                - action: meshtastic.send_text
+                  data:
+                    text: >
+                      NWS: {{ repeat.item.Event }}
+
+                      {{ repeat.item.Headline }}
+
+                      From {{ as_timestamp(repeat.item.Onset) | timestamp_custom('%b %d, %I:%M %p', True) }}
+
+                      Until {{ as_timestamp(repeat.item.Ends) | timestamp_custom('%b %d, %I:%M %p', True) }}
+                    channel: !input meshtastic_channel
+                - action: meshtastic.send_text
+                  data:
+                    text: |
+                      Areas: {{ repeat.item.AreasAffected }}
+                    channel: !input meshtastic_channel
+
+mode: single
