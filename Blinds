@@ -46,7 +46,7 @@ blueprint:
       selector:
         number:
           min: 0
-          max: 150000
+          max: 20000
           unit_of_measurement: lx
       default: 2500
 
@@ -56,7 +56,7 @@ blueprint:
       selector:
         number:
           min: 0
-          max: 150000
+          max: 20000
           unit_of_measurement: lx
       default: 1200
 
@@ -69,6 +69,7 @@ blueprint:
           max: 60
           unit_of_measurement: minutes
       default: 5
+
 
 mode: single
 max_exceeded: silent
