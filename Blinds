@@ -40,6 +40,36 @@ blueprint:
             domain: cover
           multiple: true
 
+    openbrightness:
+      name: Open Brightness Threshold
+      description: The minimum brightness level required outside to automatically open the blinds.
+      selector:
+        number:
+          min: 0
+          max: 150000
+          unit_of_measurement: lx
+      default: 2500
+
+    closebrightness:
+      name: Close Brightness Threshold
+      description: The maximum brightness level required outside to automatically close the blinds.
+      selector:
+        number:
+          min: 0
+          max: 150000
+          unit_of_measurement: lx
+      default: 1200
+
+    timedelay:
+      name: Time Delay
+      description: How long the brightness must remain above or below the threshold before triggering the blinds. Increasing this value can reduce operation frequency to conserve battery life.
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: minutes
+      default: 5
+
 mode: single
 max_exceeded: silent
 
@@ -74,7 +104,7 @@ actions:
             below: !input indoor_temperature
           - condition: numeric_state
             entity_id: !input outdoor_illuminance
-            above: 2000
+            above: !input openbrightness
           - condition: state
             entity_id: !input blinds
             state: closed
@@ -94,7 +124,7 @@ actions:
             above: !input indoor_temperature
           - condition: numeric_state
             entity_id: !input outdoor_illuminance
-            above: 2000
+            above: !input openbrightness
           - condition: state
             entity_id: !input blinds
             state: open
@@ -114,7 +144,7 @@ actions:
             below: !input indoor_temperature
           - condition: numeric_state
             entity_id: !input outdoor_illuminance
-            below: 1500
+            below: !input closebrightness
           - condition: state
             entity_id: !input blinds
             state: open
@@ -134,7 +164,7 @@ actions:
             above: !input indoor_temperature
           - condition: numeric_state
             entity_id: !input outdoor_illuminance
-            below: 1500
+            below: !input closebrightness
           - condition: state
             entity_id: !input blinds
             state: closed
