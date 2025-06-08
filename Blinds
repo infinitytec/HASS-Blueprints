@@ -76,11 +76,11 @@ actions:
             entity_id: !input outdoor_illuminance
             above: 2000
           - condition: state
-            entity_id: cover.loft_blinds
+            entity_id: !input blinds
             state: closed
         sequence:
           - target:
-              entity_id: cover.loft_blinds
+              entity_id: !input blinds
             action: cover.open_cover
             data: {}
       - conditions:
@@ -96,11 +96,11 @@ actions:
             entity_id: !input outdoor_illuminance
             above: 2000
           - condition: state
-            entity_id: cover.loft_blinds
+            entity_id: !input blinds
             state: open
         sequence:
           - target:
-              entity_id: cover.loft_blinds
+              entity_id: !input blinds
             action: cover.close_cover
             data: {}
       - conditions:
@@ -116,11 +116,11 @@ actions:
             entity_id: !input outdoor_illuminance
             below: 1500
           - condition: state
-            entity_id: cover.loft_blinds
+            entity_id: !input blinds
             state: open
         sequence:
           - target:
-              entity_id: cover.loft_blinds
+              entity_id: !input blinds
             action: cover.close_cover
             data: {}
       - conditions:
@@ -136,11 +136,11 @@ actions:
             entity_id: !input outdoor_illuminance
             below: 1500
           - condition: state
-            entity_id: cover.loft_blinds
+            entity_id: !input blinds
             state: closed
         sequence:
           - target:
-              entity_id: cover.loft_blinds
+              entity_id: !input blinds
             action: cover.open_cover
             data: {}
     default: []
