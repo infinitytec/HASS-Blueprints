@@ -1,14 +1,14 @@
 blueprint:
   name: Blind Automation
   description: >
-    Automates blinds to optimize solar heating and lighting. Opens blinds in cold weather to maximize solar heat gain. Closes blinds in hot weather to minimize heat ingress. Adjusts for sufficient natural lighting based on outdoor brightness.
+    Automates blinds to optimize solar heating and lighting. Opens blinds in cold weather to maximize solar heat gain. Closes blinds in hot weather to minimize heat ingress. Adjusts for sufficient natural lighting if outdoor illuminance is available.
 
   domain: automation
 
   input:
     outdoor_temperature:
       name: Outdoor Temperature
-      description: Current outdoor temperature. Ideally measured locally but could also be from a weather data provider.
+      description: Current outdoor temperature.
       selector:
         entity:
           filter:
@@ -16,122 +16,124 @@ blueprint:
 
     indoor_temperature:
       name: Indoor Temperature
-      description: Current indoor temperature. Ideally in the same room as the blinds.
+      description: Current indoor temperature.
       selector:
         entity:
           filter:
             domain: sensor
 
     outdoor_illuminance:
-      name: Outdoor Illuminance
-      description: Outdoor brightness level. Ideally sourced from a local illuminance sensor.
+      name: Outdoor Illuminance (optional)
+      description: Optional outdoor brightness sensor.
+      default: null
       selector:
         entity:
           filter:
             domain: sensor
             device_class: illuminance
+          multiple: false
+          include_entities:
+            - null
 
 mode: single
 max_exceeded: silent
 
-triggers:
-  - entity_id: !input outdoor_illuminance
-    above: 2000
-    for:
-      minutes: 5
-    trigger: numeric_state
-  - entity_id: !input outdoor_illuminance
-    below: 1500
-    for:
-      minutes: 5
-    trigger: numeric_state
-  - entity_id: !input outdoor_temperature
-    below: !input indoor_temperature
-    trigger: numeric_state
-  - entity_id: !input outdoor_temperature
-    above: !input indoor_temperature
-    trigger: numeric_state
+variables:
+  illuminance: !input outdoor_illuminance
+  has_illuminance: "{{ illuminance is not none and illuminance != '' }}"
+  outdoor_temp: "{{ states(!input outdoor_temperature) | float(0) }}"
+  indoor_temp: "{{ states(!input indoor_temperature) | float(0) }}"
+  illum_val: "{{ states(illuminance) | float(0) if has_illuminance else 0 }}"
+  temp_diff: "{{ (outdoor_temp - indoor_temp) | abs > 1.0 }}"
+  blinds_open: "{{ is_state('cover.loft_blinds', 'open') }}"
+  blinds_closed: "{{ is_state('cover.loft_blinds', 'closed') }}"
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input outdoor_temperature
+  - platform: numeric_state
+    entity_id: !input indoor_temperature
+  - platform: template
+    value_template: >
+      {% if has_illuminance %}
+        {{ illum_val > 2000 or illum_val < 1500 }}
+      {% else %}
+        false
+      {% endif %}
+
 conditions: []
+
 actions:
   - choose:
+      # Open blinds if outside is colder and illuminance is high OR missing
       - conditions:
           - condition: template
-            value_template: >
-              {% set diff = (states('!input outdoor_temperature')|float -
-              states('!input indoor_temperature')|float)
-              %} {{ diff | abs > 1.0 }}
-          - condition: numeric_state
-            entity_id: !input outdoor_temperature
-            below: !input indoor_temperature
-          - condition: numeric_state
-            entity_id: !input outdoor_illuminance
-            above: 2000
-          - condition: state
-            entity_id: cover.loft_blinds
-            state: closed
-        sequence:
-          - target:
-              entity_id: cover.loft_blinds
-            action: cover.open_cover
-            data: {}
-      - conditions:
+            value_template: "{{ temp_diff and outdoor_temp < indoor_temp }}"
           - condition: template
             value_template: >
-              {% set diff = (states('!input outdoor_temperature')|float -
-              states('!input indoor_temperature')|float)
-              %} {{ diff | abs > 1.0 }}
-          - condition: numeric_state
-            entity_id: !input outdoor_temperature
-            above: !input indoor_temperature
-          - condition: numeric_state
-            entity_id: !input outdoor_illuminance
-            above: 2000
-          - condition: state
-            entity_id: cover.loft_blinds
-            state: open
+              {% if has_illuminance %}
+                {{ illum_val > 2000 }}
+              {% else %}
+                true
+              {% endif %}
+          - condition: template
+            value_template: "{{ blinds_closed }}"
         sequence:
-          - target:
+          - service: cover.open_cover
+            target:
               entity_id: cover.loft_blinds
-            action: cover.close_cover
-            data: {}
+
+      # Close blinds if outside is hotter and illuminance is high OR missing
       - conditions:
           - condition: template
-            value_template: >
-              {% set diff = (states('!input outdoor_temperature')|float -
-              states('!input indoor_temperature')|float)
-              %} {{ diff | abs > 1.0 }}
-          - condition: numeric_state
-            entity_id: !input outdoor_temperature
-            below: !input indoor_temperature
-          - condition: numeric_state
-            entity_id: !input outdoor_illuminance
-            below: 1500
-          - condition: state
-            entity_id: cover.loft_blinds
-            state: open
-        sequence:
-          - target:
-              entity_id: cover.loft_blinds
-            action: cover.close_cover
-            data: {}
-      - conditions:
+            value_template: "{{ temp_diff and outdoor_temp > indoor_temp }}"
           - condition: template
             value_template: >
-              {% set diff = (states('!input outdoor_temperature')|float -
-              states('!input indoor_temperature')|float)
-              %} {{ diff | abs > 1.0 }}
-          - condition: numeric_state
-            entity_id: !input outdoor_temperature
-            above: !input indoor_temperature
-          - condition: numeric_state
-            entity_id: !input outdoor_illuminance
-            below: 1500
-          - condition: state
-            entity_id: cover.loft_blinds
-            state: closed
+              {% if has_illuminance %}
+                {{ illum_val > 2000 }}
+              {% else %}
+                true
+              {% endif %}
+          - condition: template
+            value_template: "{{ blinds_open }}"
         sequence:
-          - target:
+          - service: cover.close_cover
+            target:
               entity_id: cover.loft_blinds
-            action: cover.open_cover
-            data: {}
+
+      # Close blinds if outside is colder but it's too dark
+      - conditions:
+          - condition: template
+            value_template: "{{ temp_diff and outdoor_temp < indoor_temp }}"
+          - condition: template
+            value_template: >
+              {% if has_illuminance %}
+                {{ illum_val < 1500 }}
+              {% else %}
+                false
+              {% endif %}
+          - condition: template
+            value_template: "{{ blinds_open }}"
+        sequence:
+          - service: cover.close_cover
+            target:
+              entity_id: cover.loft_blinds
+
+      # Open blinds if outside is hotter but it's too dark
+      - conditions:
+          - condition: template
+            value_template: "{{ temp_diff and outdoor_temp > indoor_temp }}"
+          - condition: template
+            value_template: >
+              {% if has_illuminance %}
+                {{ illum_val < 1500 }}
+              {% else %}
+                false
+              {% endif %}
+          - condition: template
+            value_template: "{{ blinds_closed }}"
+        sequence:
+          - service: cover.open_cover
+            target:
+              entity_id: cover.loft_blinds
     default: []
